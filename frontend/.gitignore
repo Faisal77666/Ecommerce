@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# frontend/backend/socket dependencies
+frontend/node_modules/
+backend/node_modules/
+socket/node_modules/
+
+# builds
+frontend/build/
+backend/build/
+
+# env
+.env
+.env.local
+.env.development.local
+.env.production.local
+
+# logs
+npm-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+
