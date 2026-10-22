@@ -17,7 +17,7 @@ app.use(express.json());
 
 //config
 
-if(process.env.NODE_ENV !== "PRODUCTION"){
+if(!["production", "PRODUCTION"].includes(process.env.NODE_ENV)){
 require("dotenv").config({
   path:"backend/config/.env"
 })
