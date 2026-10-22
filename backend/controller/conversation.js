@@ -1,4 +1,4 @@
-const Conversation = require("../model/Conversation.js");
+const Conversation = require("../model/conversation.js");
 const ErrorHandler = require("../utils/errorHandler.js");
 const catchAsyncErrors = require("../middleware/catchAsyncError.js");
 const { isAuthenticated } = require("../middleware/auth.js");
