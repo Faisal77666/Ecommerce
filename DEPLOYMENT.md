@@ -1,42 +1,61 @@
-# Deployment: Vercel frontend + persistent Node backend
+# Deployment: React and Express on Vercel
 
-## Services
+## Architecture
 
-- **Frontend:** Deploy `frontend/` as a Create React App on Vercel.
-- **API:** Deploy the repository root as a persistent Node service (Railway, EC2, etc.). Start: `npm start`. The API requires MongoDB, SMTP credentials, JWT configuration, Stripe keys, and persistent storage for uploaded images.
-- **Socket.IO:** Deploy `socket/` as a separate persistent Node service. Start: `npm start`. Vercel Functions cannot host a long-running Socket.IO server.
+- **Frontend:** Existing Vercel project `ecommerce-b813.vercel.app`, Root Directory `frontend`, Framework Create React App.
+- **API:** Make a **second Vercel project** from the same GitHub repository, Root Directory `.` (repository root). The root `index.js` exports the Express application for Vercel Functions. Do **not** start `backend/server.js` as the serverless handler.
+- **Socket.IO:** Needs another long-running Node host. Vercel Functions are not a persistent Socket.IO server.
+- **Database:** MongoDB Atlas. Both API and database connectivity require valid credentials and network access.
+- **Uploads:** Product uploads use local filesystem. Serverless local disk is not durable; migrate uploads to persistent object storage before using seller product uploads.
 
-## Vercel project configuration
+## Branch testing
+
+The fixes are on `fix/vercel-deployment` (draft PR). The repository default branch is `main`; Vercel's first production deployment may use `main` and **not** include these changes. Deploy and validate a Preview from the PR branch before merging.
+
+## Frontend Vercel settings
 
 - Root Directory: `frontend`
-- Framework: Create React App
-- Build Command: `npm run build`
-- Output Directory: `build`
-- Environment variables: `REACT_APP_BACKEND_URL=https://YOUR-API-HOST` and `REACT_APP_SOCKET_URL=https://YOUR-SOCKET-HOST`. These must be origins **without** `/api/v2`; the frontend adds that route.
-- Deploy the site, then set the exact production frontend URL on your API and Socket.IO services and redeploy them.
+- Preset: Create React App
+- Build: `npm run build`; Output: `build`
+- `REACT_APP_BACKEND_URL=https://YOUR-API-VERCEL-HOST` (no `/api/v2`)
+- `REACT_APP_SOCKET_URL=https://YOUR-SOCKET-HOST` (only after Socket.IO is hosted).
+- Environment values are embedded at React build time; redeploy the frontend after setting them.
+- `frontend/vercel.json` handles React Router deep links.
+- Temporarily `CI=false` avoids CRA turning legacy lint warnings into build errors; lint issues must still be fixed before production.
 
-## API service environment
+## API Vercel settings
 
-- `NODE_ENV=production` (lowercase)
-- `PORT` (typically supplied by host; default is 8000)
-- `FRONTEND_URL=https://YOUR-VERCEL-SITE.vercel.app` (exact origin; no trailing slash). Multiple origins can be comma-separated if needed.
-- Set the existing server-side credentials according to your current backend configuration (e.g. `DB_URL`, `JWT_SECRET_KEY`, SMTP and Stripe settings). Never put server secrets in `REACT_APP_*`.
-- Review cookie settings: production cookies are `Secure` and `SameSite=None` for cross-site requests. Some browsers block third-party cookies; using a custom domain with API and app subdomains is more reliable. Frontend requests must use `withCredentials: true`.
+Create a separate `ecommerce-api` project:
+- Import `Faisal77666/Ecommerce` (same repository), repository root directory `.`.
+- Use Vercel's Express/Node framework detection and deploy `index.js` (do not select the `frontend` folder).
+- Required server-only environment variables include:
+  - `DB_URL`: **actual** MongoDB connection URI (keep secret).
+  - `JWT_SECRET_KEY`, `JWT_EXPIRES`: used in JWT issuing/verification.
+  - `STRIPE_SECRET_KEY`, `STRIPE_API_KEY`: use **test-mode** keys first.
+  - `FRONTEND_URL=https://ecommerce-b813.vercel.app` (CORS origin; add the preview frontend origin if testing PR previews).
+  - `NODE_ENV=production` if not automatically set by the platform.
+  - Configure the SMTP variables expected by `backend/utils/sendMail.js` and any other integrations before testing related functions.
+- Keep all secrets out of `REACT_APP_*` variables and out of Git.
+- Verify `GET https://YOUR-API-HOST/api/health` returns `{"status":"ok"}`; it does **not** prove database availability.
+- Then test actual DB-backed API routes and inspect Function Logs for errors.
 
-## Socket.IO service environment
+## Risks and follow-up work
 
-- `PORT` provided by the host (or 4000 locally)
-- `FRONTEND_URL=https://YOUR-VERCEL-SITE.vercel.app`
-- Configure the public origin in Vercel as `REACT_APP_SOCKET_URL`.
+1. Cross-site cookies are `Secure; SameSite=None` in production, but browsers can block third-party cookies. Prefer app and API subdomains of a domain you own.
+2. MongoDB connections are reused per warm function instance, but serverless scaling can create multiple instances.
+3. Product images must be moved away from ephemeral local uploads before public use.
+4. Payments must be tested with Stripe test keys; review authorization, webhooks, rate limiting, and checkout behavior before live payments.
+5. Socket.IO chat cannot run on Vercel Functions.
+6. Frontend currently has many ESLint warnings and dependency audit findings; review before production rollout.
+7. Do not merge the draft PR until both API and frontend preview builds and functional checks pass.
 
-## Verification checklist
+## Local verification
 
-1. Build frontend from `frontend/`: `npm ci && npm run build`.
-2. Check backend connection to MongoDB and that `GET /api/v2/...` endpoints respond.
-3. Verify login and seller login set cookies successfully; verify authenticated requests.
-4. Test deep-link refresh on React Router routes.
-5. Test seller images, product creation, order creation, chat and Stripe **test-mode** checkout before enabling live payments.
-6. Uploads are currently served from local disk. On platforms with ephemeral filesystems, use persistent storage/object storage before relying on uploaded files.
-7. Use deployed HTTPS URLs everywhere. Avoid opening a public store to real customers until payments, secrets, rate limiting, auth and data storage are reviewed.
-
-No deployment is performed by this PR. It prepares configuration; a live public deployment requires hosting accounts and environment variables.
+```bash
+npm ci
+node --check index.js
+node --check backend/db/Database.js
+cd frontend
+npm ci
+npm run build
+```
