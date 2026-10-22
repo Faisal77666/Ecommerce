@@ -1,5 +1,5 @@
 const Messages = require("../model/messages.js");
-const ErrorHandler = require("../utils/errorHandler.js");
+const ErrorHandler = require("../utils/ErrorHandler.js");
 const catchAsyncErrors = require("../middleware/catchAsyncError.js");
 const express = require("express");
 const { upload } = require("../multer.js");
