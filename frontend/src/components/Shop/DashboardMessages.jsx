@@ -1,6 +1,6 @@
 import axios from "axios";
 import React, { useEffect, useState, useRef } from "react";
-import { backend_url, server } from "../../server";
+import { backend_url, server, socket_url } from "../../server";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { AiOutlineArrowRight, AiOutlineSend } from "react-icons/ai";
@@ -9,7 +9,7 @@ import { format } from "timeago.js";
 import socketIO from "socket.io-client";
 import styles from "../../styles/styles";
 
-const ENDPOINT = server;
+const ENDPOINT = socket_url;
 
 const DashboardMessages = () => {
   const { seller } = useSelector((state) => state.seller);
