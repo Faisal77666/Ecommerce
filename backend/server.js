@@ -13,7 +13,7 @@ process.on("uncaughtException",(error)=>{
 
 //config
 
-if(process.env.NODE_ENV !== "PRODUCTION"){
+if(!["production", "PRODUCTION"].includes(process.env.NODE_ENV)){
 require("dotenv").config({
   path:"backend/config/.env"
 })
@@ -23,7 +23,7 @@ require("dotenv").config({
 connectDatabase();
 
 
-const server=app.listen(process.env.PORT,()=>{
+const server=app.listen(process.env.PORT || 8000,()=>{
   console.log(`Server is running on http://localhost:${process.env.PORT}`);
   
 })
