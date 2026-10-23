@@ -78,7 +78,7 @@ socket.on('sendMessage',({senderId,receiverId,text,images})=>{
   io.to(String(receiverId)).emit('getMessage',message);
 
 })
-socket.on('messageSeen',({senderId,receiverId})=>{
+socket.on('messageSeen',({senderId,receiverId,messageId})=>{
   const user=getUser(senderId);
 
   //update the seen flag to the message 

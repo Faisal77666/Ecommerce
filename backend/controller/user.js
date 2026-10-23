@@ -39,7 +39,7 @@ const fileUrl = uploadedImage.url;
       avatar:fileUrl
     } 
     const activationToken=createActivationToken(user)
-    const activationUrl=`http://localhost:3000/activation/user/${activationToken}`
+    const activationUrl=`${process.env.FRONTEND_URL || 'http://localhost:3000'}/activation/user/${activationToken}`
     try {
       const htmlTemplate = USER_ACCOUNT_VERIFY_TEMPLATE
   .replace("{{name}}", user.name)
@@ -105,7 +105,7 @@ router.post("/activation", async (req, res) => {
     // Send "Account Created Successfully" email
     const successHtml = USER_ACCOUNT_CREATED_TEMPLATE
       .replace("{{name}}", user.name)
-      .replace("{{loginUrl}}", "http://localhost:3000/login")
+      .replace("{{loginUrl}}", `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`)
       .replace("{{year}}", new Date().getFullYear());
     
     await sendMail({
@@ -173,9 +173,11 @@ try {
 
 router.get('/logout',isAuthenticated,catchAsyncError(async(req,res,next)=>{
   try {
-    res.cookie("token",null,{
-      expiresIn:new Date(Date.now()),
-      httpOnly:true
+    res.clearCookie("token", {
+      httpOnly: true,
+      sameSite: process.env.NODE_ENV?.toLowerCase() === "production" ? "none" : "lax",
+      secure: process.env.NODE_ENV?.toLowerCase() === "production",
+      path: "/",
     })
     res.status(200).json({
       success:true,

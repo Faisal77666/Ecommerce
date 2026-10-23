@@ -9,14 +9,17 @@ import { useNavigate } from 'react-router-dom'
 import { server } from '../../server'
 import { toast } from 'react-toastify'
 import axios from 'axios'
+import { useDispatch } from "react-redux";
+import { LogoutUser } from "../../redux/reducers/user";
 
 function ProfileSidebar({setActive,active}) {
   const navigate=useNavigate()
+  const dispatch = useDispatch();
   const logoutHandler=()=>{
     axios.get(`${server}/user/logout`,{withCredentials:true}).then((res)=>{
-      toast.success(res.data.message)
-      window.location.reload(true)
-      navigate('/login')
+      dispatch(LogoutUser());
+      toast.success(res.data.message);
+      window.location.replace("/login")
       
     }).catch((error)=>{
       console.log(error.response.data.message);

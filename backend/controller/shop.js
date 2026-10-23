@@ -48,7 +48,7 @@ const fileUrl = uploadedImage.url;
     };
 
     const activationToken = createActivationToken(seller);
-    const activationUrl = `http://localhost:3000/seller/activation/${activationToken}`;
+    const activationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/seller/activation/${activationToken}`;
     try {
       const htmlTemplate = ACCOUNT_VERIFY_TEMPLATE
   .replace("{{name}}", seller.name)
@@ -127,7 +127,7 @@ router.post("/activation", async (req, res) => {
     // Send "Account Created Successfully" email
 const successHtml = ACCOUNT_CREATED_TEMPLATE
   .replace("{{name}}", seller.name)
-  .replace("{{loginUrl}}", "http://localhost:3000/login")
+  .replace("{{loginUrl}}", `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`)
   .replace("{{year}}", new Date().getFullYear());
 
 await sendMail({
@@ -195,9 +195,11 @@ try {
 
 router.get('/logout',catchAsyncError(async(req,res,next)=>{
   try {
-    res.cookie("seller_token",null,{
-      expiresIn:new Date(Date.now()),
-      httpOnly:true
+    res.clearCookie("seller_token", {
+      httpOnly: true,
+      sameSite: process.env.NODE_ENV?.toLowerCase() === "production" ? "none" : "lax",
+      secure: process.env.NODE_ENV?.toLowerCase() === "production",
+      path: "/",
     })
     res.status(200).json({
       success:true,

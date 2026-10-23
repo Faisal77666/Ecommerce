@@ -6,6 +6,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { getAllProductsShop } from '../../redux/actions/product.js'
 import { getImageUrl } from "../../utils/getImageUrl";
+import { LogoutSeller } from "../../redux/reducers/seller";
 
 
 function ShopInfo({isOwner}) {
@@ -32,13 +33,17 @@ const dispatch = useDispatch();
     })
 
   }, [id]);
-  const LogoutHandler=async()=>{
-    await axios.get(`${server}/shop/logout`,{withCredentials:true})
-    window.location.reload()
-    
-  }
+  const LogoutHandler = async () => {
+    try {
+      await axios.get(`${server}/shop/logout`, { withCredentials: true });
+      dispatch(LogoutSeller());
+      window.location.replace("/shop-login");
+    } catch (error) {
+      console.error("Seller logout failed:", error);
+      alert("Logout failed. Please try again.");
+    }
+  };
 
-  
   const totalReviewsLength =
       products && products.reduce((acc, product) => acc + product.reviews.length, 0);
 
