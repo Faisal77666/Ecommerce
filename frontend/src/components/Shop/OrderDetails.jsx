@@ -7,6 +7,7 @@ import { getAllOrdersOfShop } from "../../redux/actions/order";
 import { backend_url, server } from "../../server";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { getImageUrl } from "../../utils/getImageUrl";
 
 const OrderDetails = () => {
   const { orders, isLoading } = useSelector((state) => state.order);
@@ -90,7 +91,7 @@ const OrderDetails = () => {
       <br />
       {data && data?.cart.map((item,index)=>(
         <div className="w-full flex items-start mb-2">
-          <img src={`${backend_url}${item?.images[0]}`} alt=""
+          <img src={getImageUrl(item?.images?.[0])} alt=""
           className="w-[80px] h-[80px]" />
           <div className="w-full">
             <h5 className="pl-3 text-[20px]">{item?.name}</h5>

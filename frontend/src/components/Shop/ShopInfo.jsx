@@ -5,6 +5,7 @@ import axios from 'axios'
 import { Link, useParams } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { getAllProductsShop } from '../../redux/actions/product.js'
+import { getImageUrl } from "../../utils/getImageUrl";
 
 
 function ShopInfo({isOwner}) {
@@ -49,7 +50,7 @@ const dispatch = useDispatch();
     <div>
       <div className='w-full py-5'>
       <div className="w-full flex items-center justify-center">
-        <img src={`${backend_url}${data?.avatar}`} alt="" className='w-[150px] h-[150px] object-cover rounded-full' />
+        <img src={getImageUrl(data?.avatar)} alt="" className='w-[150px] h-[150px] object-cover rounded-full' />
       </div>
       <h3 className="text-center py-2 text-[20px]">
         {data.name}

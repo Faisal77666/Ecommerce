@@ -9,6 +9,7 @@ import { RxCross1 } from "react-icons/rx";
 import { AiFillStar, AiOutlineStar } from "react-icons/ai";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { getImageUrl } from "../utils/getImageUrl";
 
 const UserOrderDetails = () => {
   const { orders} = useSelector((state) => state.order);
@@ -71,7 +72,7 @@ const UserOrderDetails = () => {
       <br />
       {data && data?.cart.map((item,index)=>(
         <div className="w-full flex items-start mb-2">
-          <img src={`${backend_url}${item?.images[0]}`} alt=""
+          <img src={getImageUrl(item?.images?.[0])} alt=""
           className="w-[80px] h-[80px]" />
           <div className="w-full">
             <h5 className="pl-3 text-[20px]">{item?.name}</h5>
@@ -99,7 +100,7 @@ const UserOrderDetails = () => {
       <h2 className="text-[30px] font-Poppins font-[500] text-center">Give a review</h2>
       <br />
       <div className="w-full flex">
-        <img src={`${backend_url}${selectedItem?.images[0]}`} alt="" className="w-[80px] h-[80px]" />
+        <img src={getImageUrl(selectedItem?.images?.[0])} alt="" className="w-[80px] h-[80px]" />
         <div>
         <div className="pl-3 text-[20px]">
           {selectedItem?.name}

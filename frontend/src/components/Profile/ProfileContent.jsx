@@ -23,6 +23,7 @@ import {
 import { toast } from "react-toastify";
 import axios from "axios";
 import { getAllOrdersOfUser } from "../../redux/actions/order.js";
+import { getImageUrl } from "../../utils/getImageUrl";
 
 function ProfileContent({ active }) {
   const { user, error, successMessage } = useSelector((state) => state.user);
@@ -78,7 +79,7 @@ function ProfileContent({ active }) {
           <div className="flex justify-center w-full">
             <div className="relative">
               <img
-                src={`${backend_url}${user?.avatar}`}
+                src={getImageUrl(user?.avatar)}
                 className="w-[150px] h-[150px] rounded-full object-cover border-[3px] border-[#3ad132]"
                 alt=""
               />

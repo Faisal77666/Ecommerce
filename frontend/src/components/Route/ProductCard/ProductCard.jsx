@@ -10,6 +10,7 @@ import {
 import { Link } from "react-router-dom";
 import styles from "../../../styles/styles";
 import ProductDetailsCard from "../ProductDetailsCard/ProductDetailsCard";
+import { getImageUrl } from "../../../utils/getImageUrl";
 import { useDispatch, useSelector } from "react-redux";
 import { backend_url } from "../../../server";
 import {
@@ -64,7 +65,7 @@ const ProductCard = ({ data,isEvent }) => {
         <div className="flex justify-end"></div>
         <Link to={`${isEvent===true ? `/product/${data._id}?isEvent=true` : `/product/${data._id}`}`}>
           <img
-            src={`${backend_url}${data?.images?.[0]}`}
+            src={getImageUrl(data?.images?.[0])}
             alt=""
             className="w-full h-[170px] object-contain"
           />

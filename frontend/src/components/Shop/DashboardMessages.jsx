@@ -8,6 +8,9 @@ import { TfiGallery } from "react-icons/tfi";
 import { format } from "timeago.js";
 import socketIO from "socket.io-client";
 import styles from "../../styles/styles";
+import { getImageUrl } from "../../utils/getImageUrl";
+
+const messagingAxios = axios.create({ withCredentials: true });
 
 const ENDPOINT = socket_url;
 
@@ -63,7 +66,7 @@ const DashboardMessages = () => {
   useEffect(() => {
     const getConversation = async () => {
       try {
-        const res = await axios.get(
+        const res = await messagingAxios.get(
           `${server}/conversation/get-all-conversation-seller/${seller?._id}`,
           { withCredentials: true }
         );
@@ -113,8 +116,7 @@ const DashboardMessages = () => {
       if (!currentChat?._id) return;
 
       try {
-        const res = await axios.get(
-          `${server}/message/get-all-messages/${currentChat._id}`
+        const res = await messagingAxios.get(`${server}/message/get-all-messages/${currentChat._id}`
         );
         setMessages(res.data.messages);
       } catch (error) {
@@ -148,8 +150,7 @@ const DashboardMessages = () => {
     });
 
     try {
-      const res = await axios.post(
-        `${server}/message/create-new-message`,
+      const res = await messagingAxios.post(`${server}/message/create-new-message`,
         message
       );
 
@@ -169,7 +170,7 @@ const DashboardMessages = () => {
     });
 
     try {
-      await axios.put(
+      await messagingAxios.put(
         `${server}/conversation/update-last-message/${currentChat._id}`,
         {
           lastMessage: newMessage,
@@ -264,7 +265,7 @@ const MessageList = ({
     >
       <div className="relative">
         <img
-          src={`${backend_url}${user?.avatar}`}
+          src={getImageUrl(user?.avatar)}
           alt=""
           className="w-[50px] h-[50px] rounded-full"
         />
@@ -300,7 +301,7 @@ const SellerInbox = ({
       <div className="flex justify-between items-center bg-slate-200 p-3">
         <div className="flex items-center">
           <img
-            src={`${backend_url}${userData?.avatar}`}
+            src={getImageUrl(userData?.avatar)}
             className="w-[60px] h-[60px] rounded-full"
             alt=""
           />
@@ -330,16 +331,30 @@ const SellerInbox = ({
           >
             {msg.sender !== sellerId && (
               <img
-                src={`${backend_url}${userData?.avatar}`}
+                src={getImageUrl(userData?.avatar)}
                 className="w-[40px] h-[40px] rounded-full mr-2"
                 alt=""
               />
             )}
 
             <div>
-              <div className="p-2 bg-green-500 text-white rounded">
-                {msg.text}
-              </div>
+              {msg.text && (
+                <div className="p-2 bg-green-500 text-white rounded">
+                  {msg.text}
+                </div>
+              )}
+
+              {Array.isArray(msg.images) &&
+                msg.images
+                  .filter((image) => typeof image === "string" && image.trim())
+                  .map((image, index) => (
+                    <img
+                      key={index}
+                      src={getImageUrl(image)}
+                      alt="Chat attachment"
+                      className="max-w-[250px] max-h-[300px] object-contain rounded-lg mt-2"
+                    />
+                  ))}
               <p className="text-[12px] text-gray-600">
                 {format(msg.createdAt)}
               </p>

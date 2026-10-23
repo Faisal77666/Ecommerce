@@ -12,6 +12,7 @@ import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { addToCart } from "../../../redux/actions/cart";
+import { getImageUrl } from "../../../utils/getImageUrl";
 import { addToWishlist, removeFromWishlist } from "../../../redux/actions/wishlist";
 
 function ProductDetailsCard({ setOpen, data }) {
@@ -84,7 +85,7 @@ function ProductDetailsCard({ setOpen, data }) {
                 <img
                   src={
                     data.images && data.images.length > 0
-                      ? `${backend_url}${data.images[0]}`
+                     ? getImageUrl(data.images[0])
                       : "fallback-image.png"
                   }
                   alt={data.name}
@@ -97,7 +98,7 @@ function ProductDetailsCard({ setOpen, data }) {
                     <img
                       src={
                         data.shop.avatar
-                          ? `${backend_url}${data.shop.avatar}`
+                          ? getImageUrl(data.shop.avatar)
                           : "fallback-avatar.png"
                       }
                       alt={data.shop.name}

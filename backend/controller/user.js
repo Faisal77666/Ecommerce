@@ -11,27 +11,26 @@ const sendToken=require('../utils/jwtToken')
 const catchAsyncError = require('../middleware/catchAsyncError')
 const { isAuthenticated } = require('../middleware/auth')
 const { USER_ACCOUNT_VERIFY_TEMPLATE, USER_ACCOUNT_CREATED_TEMPLATE } = require('../config/emailTemplates')
-
+const { uploadToCloudinary } = require("../utils/cloudinaryUpload");
 
 router.post("/create-user",upload.single("file"),async (req,res,next)=>{
   try{
   const {name,email,password}=req.body
     const userEmail=await User.findOne({email})
-    if(userEmail){
-      const filename=req.file.filename
-      const filepath=`uploads/${filename}`
-      fs.unlink(filepath,(error)=>{
-        if(error){
-          console.log(error);
-          res.status(500).json({message:"Error deleting file"})
-        }
-       
-      })
-      return next(new ErrorHandler('User already exists',400))
-    }
+    if (userEmail) {
+  return next(new ErrorHandler("User already exists", 400));
+}
 
-    const filename=req.file.filename
-    const fileUrl=path.join(filename)
+    if (!req.file) {
+  return next(new ErrorHandler("Profile image is required", 400));
+}
+
+const uploadedImage = await uploadToCloudinary(
+  req.file,
+  "ecommerce/users"
+);
+
+const fileUrl = uploadedImage.url;
 
     const user={
       name:name,
@@ -230,19 +229,36 @@ router.put(
 );
 
 //update user avatar
-router.put('/update-avatar',isAuthenticated,upload.single('image'),catchAsyncError(async(req,res,next)=>{
-  try {
-    const existsUser=await User.findById(req.user.id)
-    const existAvatarPath=`uploads/${existsUser.avatar}`
-    fs.unlinkSync(existAvatarPath)
-    const fileUrl=path.join(req.file.filename)
-    const user=await User.findByIdAndUpdate(req.user.id,{avatar:fileUrl})
-    
-  } catch (error) {
-    return next(new ErrorHandler(error.message, 500));
-    
-  }
-}))
+router.put(
+  "/update-avatar",
+  isAuthenticated,
+  upload.single("image"),
+  catchAsyncError(async (req, res, next) => {
+    if (!req.file) {
+      return next(new ErrorHandler("Image is required", 400));
+    }
+
+    const uploadedImage = await uploadToCloudinary(
+      req.file,
+      "ecommerce/users"
+    );
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { avatar: uploadedImage.url },
+      { new: true }
+    );
+
+    if (!user) {
+      return next(new ErrorHandler("User not found", 404));
+    }
+
+    res.status(200).json({
+      success: true,
+      user,
+    });
+  })
+);
 
 
 //update user addresses

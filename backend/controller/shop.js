@@ -5,6 +5,10 @@ const fs = require("fs");
 const jwt = require("jsonwebtoken");
 const sendMail = require("../utils/sendMail");
 const sendToken = require("../utils/jwtToken");
+const {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+} = require("../utils/cloudinaryUpload");
 const { isAuthenticated, isSeller } = require("../middleware/auth");
 const Shop = require("../model/shop");
 const { upload } = require("../multer");
@@ -20,18 +24,18 @@ router.post("/create-shop", upload.single("file"), async (req, res, next) => {
     const { email } = req.body;
     const sellerEmail = await Shop.findOne({ email });
     if (sellerEmail) {
-      const filename = req.file.filename;
-      const filepath = `uploads/${filename}`;
-      fs.unlink(filepath, (error) => {
-        if (error) {
-          console.log(error);
-          res.status(500).json({ message: "Error deleting file" });
-        }
-      });
-      return next(new ErrorHandler("User already exists", 400));
-    }
-    const filename = req.file.filename;
-    const fileUrl = path.join(filename);
+  return next(new ErrorHandler("Shop already exists", 400));
+}
+    if (!req.file) {
+  return next(new ErrorHandler("Shop image is required", 400));
+}
+
+const uploadedImage = await uploadToCloudinary(
+  req.file,
+  "ecommerce/shops"
+);
+
+const fileUrl = uploadedImage.url;
 
     const seller = {
       name: req.body.name,
@@ -216,23 +220,40 @@ router.get("/get-shop-info/:id", catchAsyncError(async (req, res, next) => {
 
 //update shop profile picture
 
-router.put('/update-shop-avatar',isSeller,upload.single('image'),catchAsyncError(async(req,res,next)=>{
-  try {
-    const existsUser=await Shop.findById(req.seller._id)
-    const existAvatarPath=`uploads/${existsUser.avatar}`
-    fs.unlinkSync(existAvatarPath)
-    const fileUrl=path.join(req.file.filename)
-    const seller=await Shop.findByIdAndUpdate(req.seller._id,{avatar:fileUrl})
-    res.status(200).json({
-      success:true,
-      seller
-    })
-    
-  } catch (error) {
-    return next(new ErrorHandler(error.message, 500));
-    
-  }
-}))
+router.put(
+  "/update-shop-avatar",
+  isSeller,
+  upload.single("image"),
+  catchAsyncError(async (req, res, next) => {
+    if (!req.file) {
+      return next(new ErrorHandler("Image is required", 400));
+    }
+
+    const seller = await Shop.findById(req.seller._id);
+
+    if (!seller) {
+      return next(new ErrorHandler("Seller not found", 404));
+    }
+
+    const uploadedImage = await uploadToCloudinary(
+      req.file,
+      "ecommerce/shops"
+    );
+
+    try {
+      seller.avatar = uploadedImage.url;
+      await seller.save();
+
+      return res.status(200).json({
+        success: true,
+        seller,
+      });
+    } catch (error) {
+      await deleteFromCloudinary(uploadedImage.url);
+      throw error;
+    }
+  })
+);
 
 //update seller info
 router.put(

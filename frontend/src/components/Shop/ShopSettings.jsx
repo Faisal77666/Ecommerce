@@ -6,6 +6,7 @@ import styles from "../../styles/styles";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { LoadSeller } from "../../redux/actions/user";
+import { getImageUrl } from "../../utils/getImageUrl";
 
 const ShopSettings = () => {
   const { seller } = useSelector((state) => state.seller);
@@ -63,7 +64,7 @@ const ShopSettings = () => {
         <div className="w-full flex items-center justify-center">
           <div className="relative">
             <img
-              src={avatar ? URL.createObjectURL(avatar) : `${backend_url}${seller?.avatar}`}
+              src={avatar ? URL.createObjectURL(avatar) : getImageUrl(seller?.avatar)}
               alt=""
               className="w-[200px] h-[200px] rounded-full cursor-pointer"
             />
