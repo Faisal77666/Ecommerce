@@ -13,5 +13,10 @@ export const backend_url = isLocalhost
   : "/";
 
 export const socket_url = (
-  process.env.REACT_APP_SOCKET_URL || "http://localhost:4000"
+  process.env.REACT_APP_SOCKET_URL ||
+  (isLocalhost
+    ? "http://localhost:4000"
+    : "https://globalcart-socket.vercel.app")
 ).replace(/\/+$/, "");
+
+export const socket_path = "/api/socket";

@@ -1,3 +1,7 @@
+const authorizeConversation = require('./conversationAuth');
+const mongoose = require("mongoose");
+const connectDB = require("./db");
+const authenticateSocket = require('./auth');
 
 const socketIO=require('socket.io');
 const http=require('http');
@@ -5,7 +9,7 @@ const express=require('express');
 const cors=require('cors');
 const app=express();
 const server=http.createServer(app);
-const io=socketIO(server, { cors: { origin: (process.env.FRONTEND_URL || 'http://localhost:3000').split(',').map((origin) => origin.trim()), credentials: true } })
+const io=socketIO(server, { path: "/api/socket", addTrailingSlash: false, cors: { origin: (process.env.FRONTEND_URL || 'http://localhost:3000').split(',').map((origin) => origin.trim()), credentials: true } })
 const dotenv=require('dotenv');
 require('dotenv').config({
   path:"./.env"
@@ -49,62 +53,79 @@ const createMessage=({senderId,receiverId,text,images})=>({
 }
 )
 
+io.use(authenticateSocket);
+
 io.on('connection',(socket)=>{
   //when connected
   console.log('a user connected');
 
   //take userId and socketId 
   socket.on('addUser',(userId)=>{
-    addUser(userId,socket.id);
-    socket.join(String(userId));
+    const accountId = String(userId);
+
+    const authorized = socket.data.identities.some(
+      identity => identity.id === accountId
+    );
+
+    if (!authorized) {
+      socket.emit('authError', 'Unauthorized account');
+      return;
+    }
+
+    addUser(accountId, socket.id);
+    socket.join(accountId);
     io.emit('getUsers',users);
 })
 
 //send and get message
 const messages={};   //object to track messages sent to each user
-socket.on('sendMessage',({senderId,receiverId,text,images})=>{
-  const message=createMessage({senderId,receiverId,text,images});
-  const user=getUser(receiverId)
+socket.on('sendMessage', async ({ senderId, receiverId, conversationId, messageId }) => {
+  try {
+    const authorized = await authorizeConversation(
+      socket,
+      conversationId,
+      senderId,
+      receiverId
+    );
 
-  //store the message in the messages object
-  if(!messages[receiverId]){
-    messages[receiverId]=[message];
-  }else{
-    messages[receiverId].push(message);
-
-  }
-
-  //send the message to the receiver
-  io.to(String(receiverId)).emit('getMessage',message);
-
-})
-socket.on('messageSeen',({senderId,receiverId,messageId})=>{
-  const user=getUser(senderId);
-
-  //update the seen flag to the message 
-  if(messages[senderId]){
-    const message=messages[senderId].find((message)=>message.receiverId===receiverId && message.id===messageId);
-    if(message){
-      message.seen=true;
-
-      //send a message seen event to the sender
-      io.to(user?.socketId).emit('messageSeen',{
-        senderId,
-        receiverId,  
-        messageId
-      });
+    if (!authorized || !mongoose.isValidObjectId(messageId)) {
+      socket.emit('authError', 'Unauthorized message');
+      return;
     }
-    
+
+    await connectDB();
+
+    const savedMessage = await mongoose.connection.db
+      .collection("messages")
+      .findOne({
+        _id: new mongoose.Types.ObjectId(messageId),
+        conversationId: String(conversationId),
+        sender: String(senderId)
+      });
+
+    if (!savedMessage) {
+      socket.emit('authError', 'Message not found or unauthorized');
+      return;
+    }
+
+    io.to(String(receiverId)).emit('getMessage', {
+      messageId: String(savedMessage._id),
+      conversationId: String(savedMessage.conversationId),
+      senderId: String(savedMessage.sender),
+      receiverId: String(receiverId),
+      text: savedMessage.text,
+      images: savedMessage.images || [],
+      createdAt: savedMessage.createdAt,
+      seen: false
+    });
+  } catch (error) {
+    console.error('Socket message verification failed:', error.message);
+    socket.emit('authError', 'Message verification failed');
   }
-})
+});
 
-//update and get a last message 
-socket.on('updateLastMessage',({lastMessage,lastMessageId})=>{
-  io.emit('getLastMessage',{lastMessage,lastMessageId});
-
-
-})
-
+// Read receipts and last-message broadcasts are disabled until
+// authenticated conversation-scoped handlers are implemented.
 
 //when disconnect
 socket.on('disconnect',()=>{
@@ -119,7 +140,12 @@ socket.on('disconnect',()=>{
 
 
 
-server.listen(process.env.PORT || 4000,()=>{
-  console.log(`server is running on port ${process.env.PORT ||4000}`);
-  
-})
+if (require.main === module) {
+  const port = process.env.PORT || 4000;
+
+  server.listen(port, () => {
+    console.log(`server is running on port ${port}`);
+  });
+}
+
+module.exports = server;
