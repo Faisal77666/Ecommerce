@@ -3,6 +3,7 @@ import { createReducer,createAction } from '@reduxjs/toolkit'
 export const LoadUserRequest = createAction("LoadUserRequest");
 export const LoadUserSuccess = createAction("LoadUserSuccess");
 export const LoadUserFail = createAction("LoadUserFail");
+export const LogoutUser = createAction("LogoutUser");
 export const updateUserInfoRequest = createAction("updateUserInfoRequest");
 export const updateUserInfoSuccess = createAction("updateUserInfoSuccess");
 export const updateUserInfoFail = createAction("updateUserInfoFail");
@@ -38,9 +39,16 @@ export const userReducer = createReducer(initialState,(builder)=>{
       state.loading =false;
       state.error=action.payload;
       state.isAuthenticated=false;
+      state.user=null;
       
     })
-    //update user information
+    .addCase(LogoutUser, (state) => {
+      state.loading = false;
+      state.isAuthenticated = false;
+      state.user = null;
+      state.error = null;
+    })
+        //update user information
     .addCase(updateUserInfoRequest,(state)=>{
       state.loading=true;
     })

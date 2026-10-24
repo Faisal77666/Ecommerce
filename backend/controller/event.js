@@ -3,6 +3,7 @@ const router=express.Router()
 const catchAsyncError = require("../middleware/catchAsyncError")
 const {isSeller}=require('../middleware/auth')
 const { upload } = require("../multer")
+const { uploadToCloudinary, deleteFromCloudinary } = require("../utils/cloudinaryUpload");
 const ErrorHandler = require("../utils/ErrorHandler")
 const Shop = require('../model/shop')
 const Event = require('../model/event')
@@ -13,30 +14,76 @@ const fs=require('fs')
 
 
 //create event
-router.post('/create-event',upload.array("images"),catchAsyncError(async(req,res,next)=>{
-  try {
-    const shopId=req.body.shopId
-    const shop=await Shop.findById(shopId)
-    if(!shop){
-      files.forEach(file => fs.unlink(`uploads/${file.filename}`, () => {}));
-      return next(new ErrorHandler("Shop Id is invalid!",400))
+// Create event
+router.post(
+  "/create-event",
+  isSeller,
+  upload.array("images", 10),
+  catchAsyncError(async (req, res, next) => {
+    const shopId = req.body.shopId;
+
+    if (String(shopId) !== String(req.seller._id)) {
+      return next(new ErrorHandler("Unauthorized shop", 403));
     }
-    else{
-      const files=req.files
-      const imageUrls=files.map((file)=>`${file.filename}`)
-      const eventData=req.body
-      eventData.images=imageUrls
-      eventData.shop=shop
-      const product=await Event.create(eventData)
-      res.status(201).json({
-        success:true,
-        product,
-      })
+
+    const shop = await Shop.findById(shopId);
+
+    if (!shop) {
+      return next(new ErrorHandler("Shop not found", 404));
     }
-  } catch (error) {
-    return next(new ErrorHandler(error,400))
-  }
-}))
+
+    if (!req.files?.length) {
+      return next(
+        new ErrorHandler("At least one event image is required", 400)
+      );
+    }
+
+    const uploadedImages = [];
+
+    try {
+      for (const file of req.files) {
+        const result = await uploadToCloudinary(
+          file,
+          "ecommerce/events"
+        );
+
+        uploadedImages.push(result);
+      }
+
+      const eventData = {
+        ...req.body,
+        images: uploadedImages.map((image) => image.url),
+        shopId: shop._id.toString(),
+        shop,
+      };
+
+      const event = await Event.create(eventData);
+
+      return res.status(201).json({
+        success: true,
+        product: event,
+      });
+    } catch (error) {
+      const cleanupResults = await Promise.allSettled(
+        uploadedImages.map((image) =>
+          deleteFromCloudinary(image.url)
+        )
+      );
+
+      cleanupResults.forEach((result) => {
+        if (result.status === "rejected") {
+          console.error("Cloudinary cleanup failed:", result.reason);
+        }
+      });
+
+      console.error("Event creation failed:", error);
+
+      return next(
+        new ErrorHandler("Event creation failed", 500)
+      );
+    }
+  })
+);
 
 //get all events
 router.get('/get-all-events',async(req,res,next)=>{
@@ -68,38 +115,39 @@ router.get('/get-all-events/:id',catchAsyncError(async (req,res,next) => {
 
 
 //delete product from shop
-router.delete('/delete-shop-event/:id',isSeller,catchAsyncError(async (req,res,next) => {
-  try {
-    const eventId=req.params.id
-   const eventData=await Event.findById(eventId)
-       eventData.images.forEach((imageUrl)=>{
-         const filename=imageUrl
-         const filePath=`uploads/${filename}`
-         fs.unlink(filePath,(error)=>{
-           if(error){
-             console.log(error);
-             
-           }
-         })
-       })
+router.delete(
+  "/delete-shop-event/:id",
+  isSeller,
+  catchAsyncError(async (req, res, next) => {
+    const event = await Event.findById(req.params.id);
 
-    const event=await Event.findByIdAndDelete(eventId)
-    if(!event){
-      return next(new ErrorHandler("Event not found with this id!",500))
+    if (!event) {
+      return next(new ErrorHandler("Event not found", 404));
     }
-     
-         
-    res.status(201).json({
-      success:true,
-      message:"Event Deleted Successfully!"
-    })
-  } catch (error) {
-     return next(new ErrorHandler(error,400))
-    
-  }
-  
-}))
 
+    // Verify the seller owns this event
+    if (String(event.shopId) !== String(req.seller._id)) {
+      return next(new ErrorHandler("Unauthorized", 403));
+    }
+
+    await Event.findByIdAndDelete(event._id);
+
+    const results = await Promise.allSettled(
+      event.images.map(deleteFromCloudinary)
+    );
+
+    results.forEach((result) => {
+      if (result.status === "rejected") {
+        console.error("Cloudinary cleanup failed:", result.reason);
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Event deleted successfully",
+    });
+  })
+);
 
 
 

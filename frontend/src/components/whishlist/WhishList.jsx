@@ -7,6 +7,7 @@ import {useSelector,useDispatch} from 'react-redux'
 import {removeFromWishlist} from '../../redux/actions/wishlist.js'
 import {backend_url} from '../../server.js'
 import {addToCart} from '../../redux/actions/cart.js'
+import { getImageUrl } from "../../utils/getImageUrl";
 
 function WhishList({ setOpenWhishList }) {
   const { wishlist } = useSelector((state) => state.wishlist);
@@ -81,7 +82,7 @@ const CartSingle = ({ data,removeFromWishlistHandler,quantityChangeHandler }) =>
       <div className="w-full flex items-center p-2">
         <RxCross1 className="cursor-pointer" onClick={()=>removeFromWishlistHandler(data)} />
         <img
-          src={`${backend_url}${data?.images[0]}`}
+          src={getImageUrl(data?.images?.[0])}
           className="w-[130px] h-min ml-2 mr-2 rounded-[5px]"
           alt=""
         />

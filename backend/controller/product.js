@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Product = require("../model/product.js");
+const { uploadToCloudinary , deleteFromCloudinary } = require("../utils/cloudinaryUpload");
 const catchAsyncError = require("../middleware/catchAsyncError.js");
 const { isSeller } = require("../middleware/auth");
 const ErrorHandler = require("../utils/ErrorHandler.js");
@@ -9,36 +10,84 @@ const Order = require("../model/order.js");
 const { upload } = require("../multer.js");
 const fs = require("fs");
 
-//create product
+// Create product
+// Create product
 router.post(
   "/create-product",
-  upload.array("images"),
+  isSeller,
+  upload.array("images", 6),
   catchAsyncError(async (req, res, next) => {
-    try {
-      const shopId = req.body.shopId;
-      const shop = await Shop.findById(shopId);
-      if (!shop) {
-        return next(new ErrorHandler("Shop Id is invalid!", 400));
-      } else {
-        const files = req.files;
-        const imageUrls = files.map((file) => `${file.filename}`);
-        const productData = req.body;
-        productData.images = imageUrls;
-        productData.shopId = shop._id.toString(); // FIXED
-        productData.shop = shop; // optional
+    const shopId = req.body.shopId;
 
-        const product = await Product.create(productData);
-        res.status(201).json({
-          success: true,
-          product,
-        });
+    if (String(shopId) !== String(req.seller._id)) {
+      return next(new ErrorHandler("Unauthorized shop", 403));
+    }
+
+    const shop = await Shop.findById(shopId);
+
+    if (!shop) {
+      return next(new ErrorHandler("Shop not found", 404));
+    }
+
+    if (!req.files?.length) {
+      return next(
+        new ErrorHandler("At least one product image is required", 400)
+      );
+    }
+
+    const uploadedImages = [];
+
+    try {
+      // Upload one image at a time so we can track successful uploads
+      for (const file of req.files) {
+        const result = await uploadToCloudinary(
+          file,
+          "ecommerce/products"
+        );
+
+        uploadedImages.push(result);
       }
+
+      const productData = {
+        ...req.body,
+        images: uploadedImages.map((image) => image.url),
+        shopId: shop._id,
+        shop,
+      };
+
+      const product = await Product.create(productData);
+
+      return res.status(201).json({
+        success: true,
+        product,
+      });
+
     } catch (error) {
-      return next(new ErrorHandler(error, 400));
+      // Remove uploaded images if upload or database saving fails
+      const cleanupResults = await Promise.allSettled(
+        uploadedImages.map((image) =>
+          deleteFromCloudinary(image.url)
+        )
+      );
+
+      cleanupResults.forEach((result) => {
+        if (result.status === "rejected") {
+          console.error(
+            "Cloudinary cleanup failed:",
+            result.reason
+          );
+        }
+      });
+
+      return next(
+        new ErrorHandler(
+          "Product creation failed",
+          500
+        )
+      );
     }
   })
 );
-
 //get all products
 router.get(
   "/get-all-products-shop/:id",
@@ -64,15 +113,22 @@ router.delete(
     try {
       const productId = req.params.id;
       const productData = await Product.findById(productId);
-      productData.images.forEach((imageUrl) => {
-        const filename = imageUrl;
-        const filePath = `uploads/${filename}`;
-        fs.unlink(filePath, (error) => {
-          if (error) {
-            console.log(error);
-          }
-        });
-      });
+      if (!productData) {
+  return next(new ErrorHandler("Product not found", 404));
+}
+
+if (String(productData.shopId) !== String(req.seller._id)) {
+  return next(new ErrorHandler("Unauthorized", 403));
+}
+      const results = await Promise.allSettled(
+  product.images.map(deleteFromCloudinary)
+);
+
+results.forEach((result) => {
+  if (result.status === "rejected") {
+    console.error("Cloudinary cleanup failed:", result.reason);
+  }
+});
 
       const product = await Product.findByIdAndDelete(productId);
       if (!product) {

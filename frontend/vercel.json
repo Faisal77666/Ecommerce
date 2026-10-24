@@ -1,0 +1,20 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/socket",
+      "destination": "https://globalcart-socket.vercel.app/api/socket"
+    },
+    {
+      "source": "/api/socket/:path*",
+      "destination": "https://globalcart-socket.vercel.app/api/socket/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://ecommerce-hwh2.vercel.app/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

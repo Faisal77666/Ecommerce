@@ -21,8 +21,8 @@ export const createProduct = (newForm) => async (dispatch) => {
     dispatch(productCreateRequest());
 
     const config = {
-      headers: { "Content-Type": "multipart/form-data" },
-    };
+  withCredentials: true,
+};
 
     const { data } = await axios.post(
       `${server}/product/create-product`,

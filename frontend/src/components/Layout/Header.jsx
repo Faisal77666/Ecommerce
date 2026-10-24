@@ -15,6 +15,7 @@ import Navbar from "./Navbar.jsx";
 import { useSelector } from "react-redux";
 import { backend_url } from "../../server.js";
 import Cart from "../cart/Cart.jsx";
+import { getImageUrl } from "../../utils/getImageUrl";
 import WhishList from "../whishlist/WhishList.jsx";
 import { RxCross1 } from "react-icons/rx";
 
@@ -57,8 +58,9 @@ export default function Header({ activeHeading }) {
           <div>
             <Link to="/">
               <img
-                src="https://shopo.quomodothemes.website/assets/images/logo.svg"
-                alt=""
+                src="/global-cart-logo.png"
+                alt="Global Cart"
+                className="w-[180px] h-auto object-contain"
               />
             </Link>
           </div>
@@ -83,7 +85,7 @@ export default function Header({ activeHeading }) {
                       <Link to={`/product/${i._id}`}>
                         <div className="w-full flex items-start-py-3">
                           <img
-                            src={`${backend_url}${i.images[0]}`}
+                            src={getImageUrl(i?.images?.[0])}
                             alt=""
                             className="w-[40px] h-[40px] mr-[10px]"
                           />
@@ -176,7 +178,7 @@ export default function Header({ activeHeading }) {
                 {isAuthenticated ? (
                   <Link to="/profile">
                     <img
-                      src={`${backend_url}${user.avatar}`}
+                      src={getImageUrl(user?.avatar)}
                       className="w-[30px] h-[30px] rounded-full"
                       alt=""
                     />
@@ -218,7 +220,7 @@ export default function Header({ activeHeading }) {
           <div>
             <Link to="/">
               <img
-                src="https://shopo.quomodothemes.website/assets/images/logo.svg"
+                src="/global-cart-logo.png"
                 alt=""
                 className="mt-3 cursor-pointer"
               />
@@ -301,7 +303,7 @@ export default function Header({ activeHeading }) {
                  <div>
                     <Link to='/profile'>
                     <img
-                      src={`${backend_url}${user.avatar}`}
+                      src={getImageUrl(user?.avatar)}
                       className="w-[60px] h-[60px] rounded-full border-[3px] border-[#0eae88]"
                       alt=""
                     />

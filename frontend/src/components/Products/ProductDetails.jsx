@@ -7,6 +7,7 @@ import { backend_url, server } from "../../server";
 import { getAllProductsShop } from "../../redux/actions/product";
 import { addToWishlist, removeFromWishlist } from "../../redux/actions/wishlist";
 import { addToCart } from "../../redux/actions/cart";
+import { getImageUrl } from "../../utils/getImageUrl";
 import { toast } from "react-toastify";
 import Ratings from "./Ratings";
 import axios from "axios";
@@ -84,7 +85,7 @@ const sellerId=data?.shop?._id
       groupTitle,
       userId,
       sellerId
-    }).then((res)=>{
+    }, { withCredentials: true }).then((res)=>{
       navigate(`/conversation/${res?.data?.conversation?._id}`)
     }).catch((error)=>{
       toast.error(error.response.data.message)
@@ -105,7 +106,7 @@ const sellerId=data?.shop?._id
             <div className="block w-full 800px:flex">
               <div className="w-full 800px:w-[50%]">
                 <img
-                   src={`${backend_url}${data && data.images[select]}`}
+                   src={getImageUrl(data?.images?.[select])}
                   alt=""
                   className="w-[80%]"
                 />
@@ -117,7 +118,7 @@ const sellerId=data?.shop?._id
                     } cursor-pointer`}
                   >
                     <img
-                      src={`${backend_url}${i}`}
+                      src={getImageUrl(i)}
                       alt=""
                       className="h-[200px] overflow-hidden mr-3 mt-3"
                       onClick={() => setSelect(index)}
@@ -189,7 +190,7 @@ const sellerId=data?.shop?._id
               </div>
               <div className="flex items-center pt-8">
                 <Link to={`/shop/preview/${data?.shop._id}`}>
-                <img src={`${backend_url}${data?.shop?.avatar}`} alt="" className="w-[50px] h-[50px] rounded-full mr-2" /></Link>
+                <img src={getImageUrl(data?.shop?.avatar)} alt="" className="w-[50px] h-[50px] rounded-full mr-2" /></Link>
                 <div className="pr-8">
                   <Link to={`/shop/preview/${data?.shop._id}`}>
                    <h3 className={`${styles.shop_name} pb-1 pt-1`}>
@@ -278,7 +279,7 @@ const ProductDetailsInfo=({data,products,totalReviewsLength,averageRating})=>{
         <div className="w-full min-h-[40vh] flex flex-col items-center py-3 overflow-y-scroll">
           {data && data.reviews.map((item,index)=>(
             <div className="w-full flex my-2">
-              <img src={`${backend_url}/${item.user.avatar}`} alt="" className="w-[50px] h-[50px] rounded-full" />
+              <img src={getImageUrl(item?.user?.avatar)} alt="" className="w-[50px] h-[50px] rounded-full" />
               <div className="pl-2 ">
                 <div className="w-full flex items-center">
                   <h1 className="font-[500] mr-3">{item.user.name}</h1>
@@ -307,7 +308,7 @@ const ProductDetailsInfo=({data,products,totalReviewsLength,averageRating})=>{
             <div className="w-full 800px:w-[50%]">
               <Link to={`/shop/preview/${data.shop._id}`}>
               <div className="flex items-center">
-                <img src={`${backend_url}${data?.shop?.avatar}`} className="w-[50px] h-[50px] rounded-full" alt="" />
+                <img src={getImageUrl(data?.shop?.avatar)} className="w-[50px] h-[50px] rounded-full" alt="" />
 
                 <div className="pl-3">
                         <h3 className={`${styles.shop_name}`}>

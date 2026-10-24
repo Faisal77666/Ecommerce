@@ -4,6 +4,7 @@ export const LoadSellerRequest = createAction("LoadSellerRequest");
 export const LoadSellerSuccess = createAction("LoadSellerSuccess");
 export const LoadSellerFail = createAction("LoadSellerFail");
 export const clearErrors = createAction("clearErrors");
+export const LogoutSeller = createAction("LogoutSeller");
 
 
 const initialState = {
@@ -27,7 +28,14 @@ export const sellerReducer = createReducer(initialState,(builder)=>{
       state.isLoading =false;
       state.error=action.payload;
       state.isSeller=false;
+      state.seller=null;
       
+    })
+    .addCase(LogoutSeller, (state) => {
+      state.isLoading = false;
+      state.isSeller = false;
+      state.seller = null;
+      state.error = null;
     })
     .addCase(
     clearErrors,(state)=>{

@@ -5,6 +5,8 @@ import axios from 'axios'
 import { Link, useParams } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { getAllProductsShop } from '../../redux/actions/product.js'
+import { getImageUrl } from "../../utils/getImageUrl";
+import { LogoutSeller } from "../../redux/reducers/seller";
 
 
 function ShopInfo({isOwner}) {
@@ -31,13 +33,17 @@ const dispatch = useDispatch();
     })
 
   }, [id]);
-  const LogoutHandler=async()=>{
-    await axios.get(`${server}/shop/logout`,{withCredentials:true})
-    window.location.reload()
-    
-  }
+  const LogoutHandler = async () => {
+    try {
+      await axios.get(`${server}/shop/logout`, { withCredentials: true });
+      dispatch(LogoutSeller());
+      window.location.replace("/shop-login");
+    } catch (error) {
+      console.error("Seller logout failed:", error);
+      alert("Logout failed. Please try again.");
+    }
+  };
 
-  
   const totalReviewsLength =
       products && products.reduce((acc, product) => acc + product.reviews.length, 0);
 
@@ -49,7 +55,7 @@ const dispatch = useDispatch();
     <div>
       <div className='w-full py-5'>
       <div className="w-full flex items-center justify-center">
-        <img src={`${backend_url}${data?.avatar}`} alt="" className='w-[150px] h-[150px] object-cover rounded-full' />
+        <img src={getImageUrl(data?.avatar)} alt="" className='w-[150px] h-[150px] object-cover rounded-full' />
       </div>
       <h3 className="text-center py-2 text-[20px]">
         {data.name}

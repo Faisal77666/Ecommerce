@@ -7,6 +7,7 @@ import ProductCard from "../Route/ProductCard/ProductCard";
 import Ratings from "../Products/Ratings";
 import { backend_url } from "../../server";
 import { getAllEventsShop } from "../../redux/actions/event";
+import { getImageUrl } from "../../utils/getImageUrl";
 const ShopProfileData = ({ isOwner }) => {
   const { products } = useSelector((state) => state.products);
   const { events } = useSelector((state) => state.events);
@@ -108,7 +109,7 @@ const ShopProfileData = ({ isOwner }) => {
             allReviews.map((item, index) => (
               <div className="w-full flex my-4">
                 <img
-                  src={`${backend_url}/${item.user.avatar}`}
+                  src={getImageUrl(item?.user?.avatar)}
                   className="w-[50px] h-[50px] rounded-full"
                   alt=""
                 />

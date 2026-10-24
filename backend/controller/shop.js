@@ -5,6 +5,10 @@ const fs = require("fs");
 const jwt = require("jsonwebtoken");
 const sendMail = require("../utils/sendMail");
 const sendToken = require("../utils/jwtToken");
+const {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+} = require("../utils/cloudinaryUpload");
 const { isAuthenticated, isSeller } = require("../middleware/auth");
 const Shop = require("../model/shop");
 const { upload } = require("../multer");
@@ -20,18 +24,18 @@ router.post("/create-shop", upload.single("file"), async (req, res, next) => {
     const { email } = req.body;
     const sellerEmail = await Shop.findOne({ email });
     if (sellerEmail) {
-      const filename = req.file.filename;
-      const filepath = `uploads/${filename}`;
-      fs.unlink(filepath, (error) => {
-        if (error) {
-          console.log(error);
-          res.status(500).json({ message: "Error deleting file" });
-        }
-      });
-      return next(new ErrorHandler("User already exists", 400));
-    }
-    const filename = req.file.filename;
-    const fileUrl = path.join(filename);
+  return next(new ErrorHandler("Shop already exists", 400));
+}
+    if (!req.file) {
+  return next(new ErrorHandler("Shop image is required", 400));
+}
+
+const uploadedImage = await uploadToCloudinary(
+  req.file,
+  "ecommerce/shops"
+);
+
+const fileUrl = uploadedImage.url;
 
     const seller = {
       name: req.body.name,
@@ -44,7 +48,7 @@ router.post("/create-shop", upload.single("file"), async (req, res, next) => {
     };
 
     const activationToken = createActivationToken(seller);
-    const activationUrl = `http://localhost:3000/seller/activation/${activationToken}`;
+    const activationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/seller/activation/${activationToken}`;
     try {
       const htmlTemplate = ACCOUNT_VERIFY_TEMPLATE
   .replace("{{name}}", seller.name)
@@ -123,7 +127,7 @@ router.post("/activation", async (req, res) => {
     // Send "Account Created Successfully" email
 const successHtml = ACCOUNT_CREATED_TEMPLATE
   .replace("{{name}}", seller.name)
-  .replace("{{loginUrl}}", "http://localhost:3000/login")
+  .replace("{{loginUrl}}", `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`)
   .replace("{{year}}", new Date().getFullYear());
 
 await sendMail({
@@ -191,9 +195,11 @@ try {
 
 router.get('/logout',catchAsyncError(async(req,res,next)=>{
   try {
-    res.cookie("seller_token",null,{
-      expiresIn:new Date(Date.now()),
-      httpOnly:true
+    res.clearCookie("seller_token", {
+      httpOnly: true,
+      sameSite: process.env.NODE_ENV?.toLowerCase() === "production" ? "none" : "lax",
+      secure: process.env.NODE_ENV?.toLowerCase() === "production",
+      path: "/",
     })
     res.status(200).json({
       success:true,
@@ -216,23 +222,40 @@ router.get("/get-shop-info/:id", catchAsyncError(async (req, res, next) => {
 
 //update shop profile picture
 
-router.put('/update-shop-avatar',isSeller,upload.single('image'),catchAsyncError(async(req,res,next)=>{
-  try {
-    const existsUser=await Shop.findById(req.seller._id)
-    const existAvatarPath=`uploads/${existsUser.avatar}`
-    fs.unlinkSync(existAvatarPath)
-    const fileUrl=path.join(req.file.filename)
-    const seller=await Shop.findByIdAndUpdate(req.seller._id,{avatar:fileUrl})
-    res.status(200).json({
-      success:true,
-      seller
-    })
-    
-  } catch (error) {
-    return next(new ErrorHandler(error.message, 500));
-    
-  }
-}))
+router.put(
+  "/update-shop-avatar",
+  isSeller,
+  upload.single("image"),
+  catchAsyncError(async (req, res, next) => {
+    if (!req.file) {
+      return next(new ErrorHandler("Image is required", 400));
+    }
+
+    const seller = await Shop.findById(req.seller._id);
+
+    if (!seller) {
+      return next(new ErrorHandler("Seller not found", 404));
+    }
+
+    const uploadedImage = await uploadToCloudinary(
+      req.file,
+      "ecommerce/shops"
+    );
+
+    try {
+      seller.avatar = uploadedImage.url;
+      await seller.save();
+
+      return res.status(200).json({
+        success: true,
+        seller,
+      });
+    } catch (error) {
+      await deleteFromCloudinary(uploadedImage.url);
+      throw error;
+    }
+  })
+);
 
 //update seller info
 router.put(

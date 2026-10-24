@@ -6,10 +6,13 @@ import { useNavigate } from "react-router-dom";
 import { AiOutlineArrowRight, AiOutlineSend } from "react-icons/ai";
 import { TfiGallery } from "react-icons/tfi";
 import { format } from "timeago.js";
-import socketIO from "socket.io-client";
+import { createAuthenticatedSocket } from "../../utils/createAuthenticatedSocket";
 import styles from "../../styles/styles";
+import { getImageUrl } from "../../utils/getImageUrl";
 
-const ENDPOINT = server;
+const messagingAxios = axios.create({ withCredentials: true });
+
+
 
 const DashboardMessages = () => {
   const { seller } = useSelector((state) => state.seller);
@@ -28,42 +31,69 @@ const DashboardMessages = () => {
 
   // ================= SOCKET INIT =================
   useEffect(() => {
-    socket.current = socketIO(ENDPOINT, {
-      transports: ["polling"],
-    });
+    if (!seller?._id) return;
 
-    socket.current.on("getMessage", (data) => {
+    const currentSocket = createAuthenticatedSocket();
+    socket.current = currentSocket;
+
+    const handleConnectionError = (error) => {
+      console.error("Seller socket connection failed:", error.message);
+    };
+
+    currentSocket.on("connect_error", handleConnectionError);
+    currentSocket.connect();
+
+    currentSocket.on("getMessage", (data) => {
       setArrivalMessage({
+        _id: data.messageId,
+        conversationId: data.conversationId,
         sender: data.senderId,
         text: data.text,
-        createdAt: Date.now(),
+        images: data.images || [],
+        createdAt: data.createdAt || Date.now(),
       });
     });
 
-    socket.current.on("getUsers", (data) => {
+    currentSocket.on("getUsers", (data) => {
       setOnlineUsers(data);
     });
 
     return () => {
-      socket.current.disconnect();
+      currentSocket.off("connect_error", handleConnectionError);
+      currentSocket.disconnect();
+
+      if (socket.current === currentSocket) {
+        socket.current = null;
+      }
     };
-  }, []);
+  }, [seller?._id]);
 
   // ================= RECEIVE MESSAGE =================
   useEffect(() => {
     if (
-      arrivalMessage &&
-      currentChat?.members.includes(arrivalMessage.sender)
+      !arrivalMessage?._id ||
+      String(arrivalMessage.conversationId) !== String(currentChat?._id) ||
+      !currentChat?.members.some(
+        (member) => String(member) === String(arrivalMessage.sender)
+      )
     ) {
-      setMessages((prev) => [...prev, arrivalMessage]);
+      return;
     }
+
+    setMessages((prev) => {
+      const alreadyExists = prev.some(
+        (message) => String(message._id) === String(arrivalMessage._id)
+      );
+
+      return alreadyExists ? prev : [...prev, arrivalMessage];
+    });
   }, [arrivalMessage, currentChat]);
 
   // ================= GET CONVERSATIONS =================
   useEffect(() => {
     const getConversation = async () => {
       try {
-        const res = await axios.get(
+        const res = await messagingAxios.get(
           `${server}/conversation/get-all-conversation-seller/${seller?._id}`,
           { withCredentials: true }
         );
@@ -78,10 +108,22 @@ const DashboardMessages = () => {
 
   // ================= ADD USER TO SOCKET =================
   useEffect(() => {
-    if (seller?._id && socket.current) {
-      socket.current.emit("addUser", String(seller._id));
-    }
-  }, [seller]);
+    if (!seller?._id || !socket.current) return;
+
+    const currentSocket = socket.current;
+
+    const joinRoom = () => {
+      currentSocket.emit("addUser", String(seller._id));
+    };
+
+    currentSocket.on("connect", joinRoom);
+
+    if (currentSocket.connected) joinRoom();
+
+    return () => {
+      currentSocket.off("connect", joinRoom);
+    };
+  }, [seller?._id]);
 
   // ================= ONLINE CHECK =================
   const onlineCheck = (chat) => {
@@ -107,23 +149,120 @@ const DashboardMessages = () => {
     setActiveStatus(isOnline);
   }, [onlineUsers, userData]);
 
-  // ================= GET MESSAGES =================
+  // Recover saved messages after connecting or reconnecting.
   useEffect(() => {
-    const getMessages = async () => {
-      if (!currentChat?._id) return;
+    const conversationId = currentChat?._id;
+    if (!conversationId || !seller?._id) return;
 
+    const controller = new AbortController();
+    const currentSocket = socket.current;
+    if (!currentSocket) return;
+
+    const syncMessages = async () => {
       try {
-        const res = await axios.get(
-          `${server}/message/get-all-messages/${currentChat._id}`
+        const response = await messagingAxios.get(
+          `${server}/message/get-all-messages/${conversationId}`,
+          { signal: controller.signal }
         );
-        setMessages(res.data.messages);
+
+        if (controller.signal.aborted) return;
+
+        const fetched = (response.data.messages || []).filter(
+          (message) =>
+            String(message.conversationId) === String(conversationId)
+        );
+
+        setMessages((previous) => {
+          const merged = new Map();
+
+          for (const message of [
+            ...previous.filter(
+              (item) =>
+                String(item.conversationId) === String(conversationId)
+            ),
+            ...fetched
+          ]) {
+            if (message._id) {
+              merged.set(String(message._id), message);
+            }
+          }
+
+          return [...merged.values()].sort(
+            (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+          );
+        });
       } catch (error) {
-        console.log(error);
+        if (!controller.signal.aborted) {
+          console.error("Message synchronization failed:", error);
+        }
       }
     };
 
-    getMessages();
-  }, [currentChat]);
+    currentSocket.on("connect", syncMessages);
+
+    if (currentSocket.connected) syncMessages();
+
+    return () => {
+      controller.abort();
+      currentSocket.off("connect", syncMessages);
+    };
+  }, [currentChat?._id, seller?._id]);
+
+  // Load only messages belonging to the selected conversation.
+  useEffect(() => {
+    const conversationId = currentChat?._id;
+    const controller = new AbortController();
+
+    setMessages([]);
+
+    if (!conversationId) {
+      return () => controller.abort();
+    }
+
+    const loadMessages = async () => {
+      try {
+        const response = await messagingAxios.get(
+          `${server}/message/get-all-messages/${conversationId}`,
+          { signal: controller.signal }
+        );
+
+        if (controller.signal.aborted) return;
+
+        const fetched = (response.data.messages || []).filter(
+          (message) =>
+            String(message.conversationId) === String(conversationId)
+        );
+
+        setMessages((previous) => {
+          const merged = new Map();
+
+          for (const message of [
+            ...previous.filter(
+              (item) =>
+                String(item.conversationId) === String(conversationId)
+            ),
+            ...fetched,
+          ]) {
+            if (message._id) {
+              merged.set(String(message._id), message);
+            }
+          }
+
+          return [...merged.values()].sort(
+            (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+          );
+        });
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error("Failed to load conversation messages:", error);
+        }
+      }
+    };
+
+    loadMessages();
+
+    return () => controller.abort();
+  }, [currentChat?._id]);
 
   // ================= SEND MESSAGE =================
   const sendMessageHandler = async (e) => {
@@ -141,19 +280,19 @@ const DashboardMessages = () => {
       (m) => m !== seller._id
     );
 
-    socket.current.emit("sendMessage", {
-      senderId: seller._id,
-      receiverId,
-      text: newMessage,
-    });
-
     try {
-      const res = await axios.post(
-        `${server}/message/create-new-message`,
+      const res = await messagingAxios.post(`${server}/message/create-new-message`,
         message
       );
 
       setMessages((prev) => [...prev, res.data.message]);
+
+      socket.current.emit("sendMessage", {
+        senderId: seller._id,
+        receiverId,
+        conversationId: currentChat._id,
+        messageId: res.data.message._id,
+      });
 
       await updateLastMessage();
     } catch (error) {
@@ -169,7 +308,7 @@ const DashboardMessages = () => {
     });
 
     try {
-      await axios.put(
+      await messagingAxios.put(
         `${server}/conversation/update-last-message/${currentChat._id}`,
         {
           lastMessage: newMessage,
@@ -264,7 +403,7 @@ const MessageList = ({
     >
       <div className="relative">
         <img
-          src={`${backend_url}${user?.avatar}`}
+          src={getImageUrl(user?.avatar)}
           alt=""
           className="w-[50px] h-[50px] rounded-full"
         />
@@ -300,7 +439,7 @@ const SellerInbox = ({
       <div className="flex justify-between items-center bg-slate-200 p-3">
         <div className="flex items-center">
           <img
-            src={`${backend_url}${userData?.avatar}`}
+            src={getImageUrl(userData?.avatar)}
             className="w-[60px] h-[60px] rounded-full"
             alt=""
           />
@@ -330,16 +469,30 @@ const SellerInbox = ({
           >
             {msg.sender !== sellerId && (
               <img
-                src={`${backend_url}${userData?.avatar}`}
+                src={getImageUrl(userData?.avatar)}
                 className="w-[40px] h-[40px] rounded-full mr-2"
                 alt=""
               />
             )}
 
             <div>
-              <div className="p-2 bg-green-500 text-white rounded">
-                {msg.text}
-              </div>
+              {msg.text && (
+                <div className="p-2 bg-green-500 text-white rounded">
+                  {msg.text}
+                </div>
+              )}
+
+              {Array.isArray(msg.images) &&
+                msg.images
+                  .filter((image) => typeof image === "string" && image.trim())
+                  .map((image, index) => (
+                    <img
+                      key={index}
+                      src={getImageUrl(image)}
+                      alt="Chat attachment"
+                      className="max-w-[250px] max-h-[300px] object-contain rounded-lg mt-2"
+                    />
+                  ))}
               <p className="text-[12px] text-gray-600">
                 {format(msg.createdAt)}
               </p>
